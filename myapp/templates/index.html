@@ -1,0 +1,347 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+
+<style>
+
+* {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    height: 100%;
+    width: 100%;
+    background-color: black;
+}
+
+.box h1 {
+    text-align: center;
+    color: white;
+    margin-top: 20px;
+    font-size: 2.5rem;
+}
+
+.main-box {
+    width: 850px;
+    height: 500px;
+    border: 1px solid gray;
+    margin-left: 20%;
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(12, 1fr);
+   
+    
+}
+
+.card {
+    color: white;
+    border: 1px solid gray;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.message {
+    background-color: black;
+    height: 150px;
+    width: 200px;
+    border: 1px solid black;
+    position: absolute;
+    top: 450px;
+    left: 35px;
+}
+.message-box {
+    background-color: gray;
+    height: 150px;
+    width: 200px;
+    border: 1px solid black;
+    position: absolute;
+    top: 450px;
+    left: 35px;
+    overflow-y: auto;
+}
+
+.client-message {
+    color: white;
+    padding: 5px;
+    margin: 3px;
+}
+
+.server-message {
+    color: black;
+    padding: 5px;
+    margin: 3px;
+}
+
+.view-text input {
+    margin-left: 34px;
+    width: 200px;
+    height: 25px;
+    border-radius: 5px;
+    border: none;
+    background: white;
+    padding-left: 5px;
+}
+
+.view-text button {
+    margin-left: 95px;
+    width: 80px;
+    border-radius: 5px;
+    border: none;
+    height: 20px;
+    margin-top: 5px;
+    background-color: green;
+    color: white;
+}
+
+
+</style>
+</head>
+
+<body>
+    <div class="box">
+        <h1>2D Game Engine</h1>
+    </div>
+
+    <section>
+        <div class="main-box" id="main-box">
+            <div class="card">
+
+            </div>
+        </div>
+
+        <div class="view-text">
+            <div id="message" class="message-box"></div>
+
+            <input type="text" id="messageInput" placeholder="Enter Your Text" > <br>
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </section>
+
+<script>
+
+let Box = document.getElementById("main-box");
+
+let rows = 12;
+let columns = 12;
+
+let cards = [];
+
+for (let row = 0; row < rows; row++) {
+
+    for (let column = 0; column < columns; column++) {
+
+        let Card = document.createElement("div");
+
+        Card.classList.add("card");
+
+        Box.appendChild(Card);
+
+        cards.push(Card);
+    }
+}
+
+console.log("Total Cards:", cards.length);
+
+let username = "";
+
+let AllPlayer = {};
+
+let socket = new WebSocket("ws://localhost:8080");
+
+socket.onopen = function () {
+
+    console.log("Connected to WebSocket Server");
+
+};
+
+socket.onmessage = function(event) {
+
+    const data = JSON.parse(event.data);
+
+    if (data.type === "username") {
+
+        username = data.username;
+
+        console.log( "My Username:", username );
+
+    }
+
+    else if (data.type === "playerColor") {
+
+        let row = data.row;
+
+        let column = data.column;
+
+        let color = data.color;
+
+        let index = row * columns + column;
+
+        AllPlayer[data.username] = {
+
+            row: row,
+
+            column: column,
+
+            color: color
+        };
+
+        cards[index].style.backgroundColor = color;
+
+        cards[index].textContent = data.username;
+    }
+
+    else if (data.type === "playerMove") {
+
+        console.log( "Player Move:",data.username, data.row,data.column );
+
+        let oldPlayer = AllPlayer[data.username];
+
+
+        if (oldPlayer) {
+
+            let oldIndex = oldPlayer.row * columns + oldPlayer.column;
+
+            cards[oldIndex].style.backgroundColor = "";
+
+            cards[oldIndex].textContent = "";
+
+        }
+
+        let newRow = data.row;
+
+        let newColumn = data.column;
+
+        let newIndex = newRow * columns + newColumn;
+
+        cards[newIndex].style.backgroundColor = data.color;
+
+        cards[newIndex].textContent = data.username;
+
+        AllPlayer[data.username] = {
+
+            row: newRow,
+
+            column: newColumn,
+
+            color: data.color
+
+        };
+
+    }
+
+    else if (data.type === "chat") {
+
+        displayMessage(
+            data.username + ": " + data.message
+        );
+
+    }
+
+};
+
+
+function displayMessage(message) {
+
+    let messageContainer = document.getElementById("message");
+
+
+    let messageElement = document.createElement("div");
+
+    messageElement.textContent = message;
+
+    messageElement.classList.add("server-message");
+
+
+    messageContainer.appendChild( messageElement );
+
+    messageContainer.scrollTop = messageContainer.scrollHeight;
+
+}
+
+
+function sendMessage() {
+
+    let input = document.getElementById("messageInput");
+
+    let message = input.value.trim();
+
+
+    if (message === "") {
+        return;
+    }
+
+    if ( socket.readyState === WebSocket.OPEN ) {
+
+        let data = {
+            type: "chat",
+            username: username,
+            message: message
+        };
+
+        socket.send( JSON.stringify(data) );
+        input.value = "";
+
+    }
+
+}
+
+document.addEventListener( "keydown",
+    
+    function(event) {
+
+        if (
+            socket.readyState !==
+            WebSocket.OPEN
+        ) {
+
+            return;
+
+        }
+
+        let direction = "";
+
+
+        if (event.key === "ArrowLeft") {
+
+            direction = "left";
+
+        }
+
+        else if (event.key === "ArrowRight") {
+
+            direction = "right";
+
+        }
+
+        else if (event.key === "ArrowUp") {
+            direction = "up";
+        }
+
+        else if (event.key === "ArrowDown") {
+            direction = "down";
+        }
+
+        if (direction === "") {
+            return;
+        }
+
+        event.preventDefault();
+
+        let data = { type: "move", direction: direction };
+
+        socket.send( JSON.stringify(data));
+
+    }
+);
+
+</script>
+</body>
+</html>
